@@ -3,19 +3,6 @@ const Request = require('tedious').Request;
 let FTPClient = require('ssh2-sftp-client');
 var fs = require('fs');
 
-// This is so cron can run in subdir
-// console.log('Starting directory: ' + process.cwd());
-// try {
-//   process.chdir('everbridge');
-//   console.log('New directory: ' + process.cwd());
-// }
-// catch (err) {
-//   console.log('chdir: ' + err);
-// }
-
-
-require('dotenv').config({path:'./.env'})
-
 const FilesToSend = [
     {
         tableName: process.env.tableName1,
@@ -39,18 +26,16 @@ const dbConfig = {
     authentication: {
         type: "default",
         options: {
-            userName: process.env.munisuser, 
-            password: process.env.munispassword, 
+            userName: process.env.user, 
+            password: process.env.password, 
         }
     },
-    server: process.env.munishost,
+    server: process.env.host,
     options: {
-        database: process.env.munisdatabase,  
+        database: process.env.database,  
         encrypt: false
     }
 }
-
-let logFile = fs.createWriteStream('logfile.log');
 
 async function Run(){
     try {
@@ -61,8 +46,9 @@ async function Run(){
         console.error(err);
     }
 }
-
-Run();
+exports.handler = (event, context, callback) => {
+    Run();
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 function loadAFile(FileToSend){
@@ -70,22 +56,22 @@ function loadAFile(FileToSend){
         const { tableName, schemaName, sftpSite, sftpUser, sftpKeyFile } = FileToSend;
         let colNames = '';
 
-        logit('Getting Column Names ' + tableName);
+        console.log('Getting Column Names ' + tableName);
 
         const connection = new Connection(dbConfig);
         connection.on('connect', function(err) {
             if (err) {
-                logit(err);
+                console.log(err);
                 reject(err);
             } else {
-                logit('Connected');
+                console.log('Connected');
                 const request = new Request(
                     `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '${tableName}' AND TABLE_SCHEMA = '${schemaName}';`,
                     function(err, rowCount, rows) {
                     if (err) {
-                        logit(err);
+                        console.log(err);
                     } else {
-                        logit(rowCount + ' Column Names returned');
+                        console.log(rowCount + ' Column Names returned');
                     }
                     colNames = colNames.slice(0,-1) + '\n';
                 });
@@ -108,16 +94,16 @@ function GetRows(FileToSend,colNames,connection) {
         const { tableName, schemaName, fileName } = FileToSend;
         const sqlStr = `select * from ${schemaName}.${tableName};`;
 
-        logit(sqlStr);
+        console.log(sqlStr);
 
         const request = new Request(
             sqlStr,
             function(err, rowCount, rows) {
             if (err) {
-                logit(err);
+                console.log(err);
                 reject(err);
             } else {
-                logit(rowCount + ' rows returned ' + fileName);
+                console.log(rowCount + ' rows returned ' + fileName);
             }
             connection.close();
         });
@@ -158,7 +144,7 @@ function quoteCell(inStr){
 function FtpStep(FileToSend){
     return new Promise(function(resolve, reject) {
 
-        logit("Sending to FTP."); 
+        console.log("Sending to FTP."); 
         const { sftpSite, sftpUser, sftpKeyFile, fileName } = FileToSend;
 
         let readStream = fs.createReadStream(fileName);
@@ -193,12 +179,6 @@ function FtpStep(FileToSend){
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 process.on('uncaughtException', (err)=>{
-    logit(err);
+    console.log(err);
 });
-///////////////////////////////////////////////////////////////////////////////////////////////////////
-function logit(msg){
-    console.log(msg);
-    logFile.write(msg + '\n');
-}
-///////////////////////////////////////////////////////////////////////////////////////////////////////
 

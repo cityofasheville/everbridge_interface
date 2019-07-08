@@ -1,8 +1,9 @@
 node_modules/
-
+deploy.sh
 .env
 *rsa
 *pem
 *log
 *csv
 *txt
+*zip
